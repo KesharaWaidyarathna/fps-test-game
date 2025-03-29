@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "nipplejs": "^0.10.2",
     "three": "^0.175.0"
   },
   "devDependencies": {
