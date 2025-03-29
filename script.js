@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // Import GLTFLoader
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'; // RE-ADDED
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import nipplejs from 'nipplejs'; // ADDED
 
 // Scene
 const scene = new THREE.Scene();
@@ -84,8 +85,6 @@ for (let i = 0; i < 10; i++) {
 
 // Game State
 let playerHealth = 100;
-let totalEnemiesToSpawn = 20;
-let enemiesSpawned = 0;
 let gameActive = true;
 
 // UI Elements
@@ -108,10 +107,9 @@ loader.load(
     function (gltf) {
         soldierModel = gltf.scene;
         console.log('Soldier model loaded.');
-        // Spawn initial enemies up to the total count
-        const initialSpawnCount = Math.min(totalEnemiesToSpawn, 5); // Spawn a few initially
+        // Spawn initial enemies
+        const initialSpawnCount = 5; // Spawn 5 initially
         spawnEnemies(initialSpawnCount);
-        enemiesSpawned += initialSpawnCount;
     },
     (xhr) => console.log(`Soldier ${(xhr.loaded / xhr.total * 100)}% loaded`),
     (error) => console.error('Error loading soldier model:', error)
@@ -145,16 +143,8 @@ function updateKillCount() {
         killCountElement.textContent = `Kills: ${killCount}`;
     }
 
-    // Check win condition
-    if (killCount >= totalEnemiesToSpawn) {
-        endGame(true); // Player wins
-    }
-    // Spawn remaining enemies if needed
-    else if (enemiesSpawned < totalEnemiesToSpawn) {
-        const spawnNow = Math.min(totalEnemiesToSpawn - enemiesSpawned, 3); // Spawn in waves
-        spawnEnemies(spawnNow);
-        enemiesSpawned += spawnNow;
-    }
+    // Spawn one new enemy for each kill to make it endless
+    spawnEnemies(1);
 }
 
 function updateHealth(newHealth) {
@@ -168,9 +158,11 @@ function updateHealth(newHealth) {
 }
 
 function endGame(playerWon) {
-    if (!gameActive) return; // Don't run multiple times
+    if (!gameActive) return;
     gameActive = false;
-    controls.unlock(); // Release pointer lock
+    if (controls && controls.isLocked) { // Only unlock if desktop controls are active and locked
+        controls.unlock();
+    }
 
     if (playerWon) {
         winMessageElement.style.display = 'block';
@@ -205,75 +197,153 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 15, 10);
 scene.add(directionalLight);
 
-// Controls
-const controls = new PointerLockControls(camera, renderer.domElement);
+// --- Input Detection ---
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+console.log('Is Touch Device:', isTouchDevice);
 
-// Pointer Lock Event Listeners
-document.addEventListener('click', () => {
-    if (!controls.isLocked) {
-        controls.lock();
+// --- Controls Setup (Conditional) ---
+let controls = null; // For PointerLockControls on desktop
+const keys = {}; // For keyboard state on desktop
+
+let lookTouch = null;
+let lastLookX = 0;
+let lastLookY = 0;
+const lookSensitivity = 0.004; // Adjust sensitivity
+
+let moveData = { forward: 0, right: 0 }; // Store joystick movement
+
+if (isTouchDevice) {
+    // --- Touch Controls Initialization ---
+    const joystickZone = document.getElementById('joystickZone');
+    if (joystickZone) {
+        const joystickManager = nipplejs.create({
+            zone: joystickZone,
+            mode: 'static',
+            position: { left: '15%', bottom: '15%' },
+            color: 'white',
+            size: 100
+        });
+        joystickManager.on('move', (evt, data) => {
+            const angle = data.angle.radian;
+            const force = Math.min(data.force, 1.0); // Clamp force to max 1
+            moveData.forward = Math.sin(angle) * force;
+            moveData.right = Math.cos(angle) * force;
+        });
+        joystickManager.on('end', () => {
+            moveData.forward = 0;
+            moveData.right = 0;
+        });
+    } else {
+        console.warn('Joystick zone not found!');
     }
-});
 
-controls.addEventListener('lock', () => {
-    console.log('Pointer locked');
-    // You might want to hide a start menu here
-});
+    document.addEventListener('touchstart', (event) => {
+        const shootButton = document.getElementById('shootButton'); // Check inside listener
+        if (event.target === joystickZone || event.target.closest('#joystickZone') || event.target === shootButton || event.target.closest('button')) {
+            return;
+        }
+        if (!lookTouch) {
+            lookTouch = event.changedTouches[0];
+            lastLookX = lookTouch.clientX;
+            lastLookY = lookTouch.clientY;
+        }
+    }, { passive: false });
 
-controls.addEventListener('unlock', () => {
-    console.log('Pointer unlocked');
-    // You might want to show a pause menu here
-});
+    document.addEventListener('touchmove', (event) => {
+        if (!lookTouch) return;
+        let currentTouch = null;
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            if (event.changedTouches[i].identifier === lookTouch.identifier) {
+                currentTouch = event.changedTouches[i];
+                break;
+            }
+        }
+        if (currentTouch) {
+            const deltaX = currentTouch.clientX - lastLookX;
+            const deltaY = currentTouch.clientY - lastLookY;
+            camera.rotation.y -= deltaX * lookSensitivity;
+            camera.rotation.x -= deltaY * lookSensitivity;
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            lastLookX = currentTouch.clientX;
+            lastLookY = currentTouch.clientY;
+        }
+    }, { passive: false });
 
-// scene.add(controls.getObject()); // We add the camera itself now, which includes the controls object AND the gun
+    document.addEventListener('touchend', (event) => {
+        if (lookTouch) {
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                if (event.changedTouches[i].identifier === lookTouch.identifier) {
+                    lookTouch = null;
+                    break;
+                }
+            }
+        }
+    });
 
-// Movement state
-const keys = {};
-document.addEventListener('keydown', (event) => {
-    keys[event.code] = true;
-});
-document.addEventListener('keyup', (event) => {
-    keys[event.code] = false;
-});
+    const shootButton = document.getElementById('shootButton');
+    if (shootButton) {
+        shootButton.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            if (gameActive) shoot();
+        });
+    } else {
+        console.warn('Shoot button not found!');
+    }
+    // --- End Touch Controls Initialization ---
+
+} else {
+    // --- Desktop Controls Initialization ---
+    controls = new PointerLockControls(camera, renderer.domElement);
+    scene.add(controls.getObject()); // Add the controls object for desktop
+
+    // Hide mobile UI elements
+    const joystickZone = document.getElementById('joystickZone');
+    const shootButton = document.getElementById('shootButton');
+    if (joystickZone) joystickZone.style.display = 'none';
+    if (shootButton) shootButton.style.display = 'none';
+
+    document.addEventListener('click', () => {
+        if (!controls.isLocked && gameActive) {
+            controls.lock();
+        }
+    });
+
+    controls.addEventListener('lock', () => console.log('Pointer locked'));
+    controls.addEventListener('unlock', () => console.log('Pointer unlocked'));
+
+    document.addEventListener('keydown', (event) => { keys[event.code] = true; });
+    document.addEventListener('keyup', (event) => { keys[event.code] = false; });
+
+    document.addEventListener('mousedown', (event) => {
+        if (event.button === 0 && controls.isLocked && gameActive) { // Left click, locked, active
+            shoot();
+        }
+    });
+    // --- End Desktop Controls Initialization ---
+}
 
 // Shooting
 const bullets = [];
 const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red bullets
+const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 const bulletSpeed = 25;
 const bulletMaxDistance = 50;
 
 function shoot() {
-    if (!controls.isLocked) return; // Only shoot when pointer is locked
-
+    if (!gameActive) return;
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-
-    // Get camera direction
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
-
-    // Set bullet initial position slightly in front of the camera
     bullet.position.copy(camera.position).add(direction.multiplyScalar(0.2));
-
-    // Store direction and add velocity (needs to be updated in animate)
     bullet.userData.velocity = direction.normalize().multiplyScalar(bulletSpeed);
     bullet.userData.distanceTraveled = 0;
-
     scene.add(bullet);
     bullets.push(bullet);
 }
 
-// Add mouse down listener for shooting (using mousedown for potential hold-to-fire later)
-document.addEventListener('mousedown', (event) => {
-    // Check for left mouse button (button === 0)
-    if (event.button === 0) {
-        shoot();
-    }
-});
-
-const moveSpeed = 5.0;
+const desktopMoveSpeed = 5.0; // Separate speed for keyboard
+const touchMoveSpeed = 3.0;   // Separate speed for joystick
 const velocity = new THREE.Vector3();
-const moveDirection = new THREE.Vector3();
 let lastTime = performance.now();
 
 // Handle window resize
@@ -285,31 +355,60 @@ window.addEventListener('resize', () => {
 
 // Animation Loop
 function animate() {
-    if (!gameActive) return; // Stop loop if game ended
-
+    if (!gameActive) {
+        requestAnimationFrame(animate); // Keep rendering even if game over for messages
+        renderer.render(scene, camera);
+        return;
+    }
     requestAnimationFrame(animate);
 
     const currentTime = performance.now();
     const deltaTime = (currentTime - lastTime) / 1000;
 
-    // Player Movement
-    if (controls.isLocked === true) {
-        velocity.x -= velocity.x * 10.0 * deltaTime;
-        velocity.z -= velocity.z * 10.0 * deltaTime;
+    // --- Player Movement (Conditional) ---
+    velocity.x -= velocity.x * 10.0 * deltaTime;
+    velocity.z -= velocity.z * 10.0 * deltaTime;
 
+    if (isTouchDevice) {
+        // Touch Movement (Joystick)
+        const forward = new THREE.Vector3();
+        const right = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+        right.crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+
+        // Apply joystick input
+        const joystickForce = Math.sqrt(moveData.forward * moveData.forward + moveData.right * moveData.right); // Already clamped in listener
+        if (Math.abs(moveData.forward) > 0.05) { // Adjusted deadzone
+            velocity.z += forward.z * moveData.forward * touchMoveSpeed * deltaTime * 10; // Use touchMoveSpeed
+            velocity.x += forward.x * moveData.forward * touchMoveSpeed * deltaTime * 10;
+        }
+        if (Math.abs(moveData.right) > 0.05) { // Adjusted deadzone
+            velocity.z -= right.z * moveData.right * touchMoveSpeed * deltaTime * 10; // Use touchMoveSpeed
+            velocity.x -= right.x * moveData.right * touchMoveSpeed * deltaTime * 10;
+        }
+        // Apply movement directly to camera
+        camera.position.x += velocity.x * deltaTime;
+        camera.position.z += velocity.z * deltaTime;
+
+    } else if (controls && controls.isLocked) {
+        // Desktop Movement (Keyboard + PointerLock)
+        const moveDirection = new THREE.Vector3();
         moveDirection.z = Number(keys['KeyW'] || false) - Number(keys['KeyS'] || false);
-        moveDirection.x = Number(keys['KeyD'] || false) - Number(keys['KeyA'] || false);
+        moveDirection.x = Number(keys['KeyA'] || false) - Number(keys['KeyD'] || false);
         moveDirection.normalize(); // Ensures consistent movement speed
 
-        if (keys['KeyW'] || keys['KeyS']) velocity.z -= moveDirection.z * moveSpeed * 10.0 * deltaTime; // Apply acceleration
-        if (keys['KeyA'] || keys['KeyD']) velocity.x -= moveDirection.x * moveSpeed * 10.0 * deltaTime;
+        if (keys['KeyW'] || keys['KeyS']) velocity.z -= moveDirection.z * desktopMoveSpeed * 10.0 * deltaTime; // Use desktopMoveSpeed
+        if (keys['KeyA'] || keys['KeyD']) velocity.x -= moveDirection.x * desktopMoveSpeed * 10.0 * deltaTime; // Use desktopMoveSpeed
 
-        controls.moveRight(-velocity.x * deltaTime);
+        controls.moveRight(velocity.x * deltaTime);
         controls.moveForward(-velocity.z * deltaTime);
     }
+    // --- End Player Movement ---
 
     // --- Enemy Movement, Facing & Attack ---
-    const playerPosition = controls.getObject().position;
+    const playerPosition = camera.position;
 
     // Loop backwards for safe removal
     for (let i = enemies.length - 1; i >= 0; i--) {

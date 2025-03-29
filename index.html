@@ -11,63 +11,104 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 10px;
+            width: 10px; /* Size of the cross center gap (adjust as needed) */
             height: 10px;
-            border: 1px solid white;
-            border-radius: 50%; /* Make it a dot/circle */
+            /* background-color: white; NO LONGER NEEDED */
+            /* border-radius: 50%; REMOVED */
             transform: translate(-50%, -50%);
-            pointer-events: none; /* Allow clicks to pass through */
-            mix-blend-mode: difference; /* Helps visibility on different backgrounds */
+            pointer-events: none; /* Important */
+        }
+        /* Create the horizontal and vertical lines using pseudo-elements */
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: red; /* Red color */
+            pointer-events: none;
+        }
+        #crosshair::before {
+            /* Vertical line */
+            left: 50%;
+            top: -5px; /* Start slightly above the center */
+            width: 2px; /* Line thickness */
+            height: 20px; /* Line length (10px above + 10px below) */
+            transform: translateX(-50%); /* Center the line */
+        }
+        #crosshair::after {
+            /* Horizontal line */
+            top: 50%;
+            left: -5px; /* Start slightly left of the center */
+            width: 20px; /* Line length (10px left + 10px right) */
+            height: 2px; /* Line thickness */
+            transform: translateY(-50%); /* Center the line */
         }
         #uiContainer {
             position: absolute;
-            top: 0; left: 0;
-            padding: 20px;
+            top: 10px;
+            left: 10px;
             color: white;
-            pointer-events: none;
+            font-family: sans-serif;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 2vh; /* Use viewport height for font size */
         }
         #healthDisplay, #killCount {
             font-size: 24px;
             margin-bottom: 10px;
         }
-        .gameOverMessage {
+        .gameMessage {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 48px;
+            font-size: 8vw; /* Use viewport width */
+            font-family: sans-serif;
+            font-weight: bold;
             text-align: center;
-            display: none; /* Hidden by default */
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 30px;
+            background-color: rgba(0,0,0,0.7);
+            padding: 3vh 5vw; /* Use relative padding */
             border-radius: 10px;
+            display: none; /* Hidden by default */
+            flex-direction: column; /* Align button below text */
+            align-items: center; /* Center items horizontally */
+        }
+        .gameMessage button {
+            margin-top: 3vh; /* Space between message and button */
+            padding: 1.5vh 3vw; /* Relative padding */
+            font-size: 3vw; /* Relative font size */
+            cursor: pointer;
         }
         #joystickZone {
             position: absolute;
-            bottom: 15%; /* Adjust position */
-            left: 15%;  /* Adjust position */
-            width: 100px;
-            height: 100px;
-            background: rgba(128, 128, 128, 0.3);
+            bottom: 5vh; /* Adjust based on viewport height */
+            left: 5vw; /* Adjust based on viewport width */
+            width: 30vw; /* Relative width */
+            max-width: 150px; /* Max size */
+            height: 30vw; /* Relative height */
+            max-height: 150px; /* Max size */
+            background-color: rgba(128, 128, 128, 0.5);
             border-radius: 50%;
         }
         #shootButton {
             position: absolute;
-            bottom: 15%;
-            right: 15%;
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 0, 0, 0.5);
+            bottom: 5vh; /* Match joystick */
+            right: 5vw; /* Adjust based on viewport width */
+            width: 20vw; /* Relative width */
+            max-width: 100px; /* Max size */
+            height: 20vw; /* Relative height */
+            max-height: 100px; /* Max size */
+            background-color: rgba(255, 0, 0, 0.6);
+            color: white;
             border: 2px solid white;
             border-radius: 50%;
-            color: white;
-            font-size: 16px;
-            display: flex; /* Use flexbox for centering */
+            font-size: 3vw; /* Relative font size */
+            font-weight: bold;
+            display: flex;
             justify-content: center;
             align-items: center;
-            user-select: none; /* Prevent text selection */
-            -webkit-user-select: none; /* Safari */
+            cursor: pointer;
+            user-select: none; /* Prevent text selection on hold */
         }
     </style>
 </head>
@@ -81,11 +122,11 @@
     <div id="joystickZone"></div>
     <div id="shootButton">SHOOT</div>
 
-    <div id="winMessage" class="gameOverMessage">
+    <div id="winMessage" class="gameMessage">
         Mission Complete!
         <button id="restartButtonWin">Start Over</button>
     </div>
-    <div id="loseMessage" class="gameOverMessage">
+    <div id="loseMessage" class="gameMessage">
         You Died!
         <button id="restartButtonLose">Start Over</button>
     </div>
