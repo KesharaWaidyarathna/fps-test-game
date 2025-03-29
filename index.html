@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        canvas { display: block; }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            border: 1px solid white;
+            border-radius: 50%; /* Make it a dot/circle */
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* Allow clicks to pass through */
+            mix-blend-mode: difference; /* Helps visibility on different backgrounds */
+        }
+        #uiContainer {
+            position: absolute;
+            top: 0; left: 0;
+            padding: 20px;
+            color: white;
+            pointer-events: none;
+        }
+        #healthDisplay, #killCount {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .gameOverMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="crosshair"></div>
+    <div id="uiContainer">
+        <div id="healthDisplay">Health: 100</div>
+        <div id="killCount">Kills: 0</div>
+    </div>
+
+    <div id="winMessage" class="gameOverMessage">
+        Mission Complete!
+        <button id="restartButtonWin">Start Over</button>
+    </div>
+    <div id="loseMessage" class="gameOverMessage">
+        You Died!
+        <button id="restartButtonLose">Start Over</button>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html> 
